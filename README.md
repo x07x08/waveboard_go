@@ -1,3 +1,5 @@
+The Text-To-Speech and keyboard hooks are Windows only, thus this program compiles and works properly only on Windows.
+
 # Features
 
 * Global keyboard hotkeys for sounds (limited to only one key per sound)
@@ -8,6 +10,11 @@
 * Audio queue
 * Video downloader and converter
 * Text-To-Speech using [`SAPI`](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ms720592(v=vs.85))
+
+# Issues
+
+* User interface elements render slowly and flicker. This is an issue with the graphics library itself.
+* There might be crashes.
 
 # Screenshots
 
