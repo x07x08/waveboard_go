@@ -21,13 +21,13 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 <table>
 	<tr>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/2f3ab9da-c4da-4aba-a6f3-151e1dd66972" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/14f396d6-ca54-4569-9aa6-09ea69dc6532" width = "100%" height = "100%">
 			<p>
 				Log tab
 			</p>
 		</td>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/6f42056d-e946-485b-851a-ca2736b9cd13" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/a9738616-fd34-4b3a-9a98-3910f2196616" width = "100%" height = "100%">
 			<p>
 				Audio tab
 			</p>
@@ -35,13 +35,13 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 	</tr>
 	<tr>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/e0086bd8-fb1e-4f79-8446-ed52fa0a2b01" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/6fcb62dd-c683-4d6b-a401-4f004338a24a" width = "100%" height = "100%">
 			<p>
 				Downloader tab
 			</p>
 		</td>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/cb8aedd6-2ba6-43e0-ace0-22d15bf372fe" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/62e8b005-c983-459d-9d02-bd0c7d26bea9" width = "100%" height = "100%">
 			<p>
 				Log watch tab
 			</p>
@@ -49,13 +49,13 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 	</tr>
 	<tr>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/337bfbe7-4005-401c-bb67-4da0556f472d" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/3acd787d-50ab-4de2-9d48-102a96175e67" width = "100%" height = "100%">
 			<p>
 				Queue tab
 			</p>
 		</td>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/cf63ac65-e201-4749-ac6d-76974acc1916" width = "100%" height = "100%">
+			<img src="https://github.com/x07x08/waveboard/assets/88050465/ea1f4586-08e3-46c5-b9ac-d928bef40773" width = "100%" height = "100%">
 			<p>
 				Text-To-Speech tab
 			</p>
