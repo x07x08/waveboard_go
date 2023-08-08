@@ -816,7 +816,7 @@ func retrieveDevicesList() error {
 	var audioError error = nil
 	g_devicesList, audioError = g_audioContext.Devices(malgo.Playback)
 
-	for currentIndex := 0; currentIndex < len(g_devicesList); currentIndex++ {
+	for currentIndex := 0; currentIndex < len(g_ttsDevices); currentIndex++ {
 		listDevice := g_devicesList[currentIndex]
 
 		if listDevice.Name() == g_ttsDevices[currentIndex] {
