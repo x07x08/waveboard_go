@@ -25,9 +25,7 @@ import (
 
 	"github.com/bep/debounce"
 	"github.com/gen2brain/malgo"
-	"github.com/kkdai/youtube/v2"
 	"github.com/lxn/win"
-	"github.com/mitchellh/ioprogress"
 	"github.com/moutend/go-hook/pkg/keyboard"
 	"github.com/moutend/go-hook/pkg/types"
 	"github.com/nxadm/tail"
@@ -223,8 +221,6 @@ var g_currentTrack *AudioTrack
 var g_audioBuffer *bytes.Buffer = bytes.NewBuffer(nil)
 var g_filteredList []int
 var g_filesTableModel *ui.TableModel
-
-var g_downloadClient *youtube.Client = &youtube.Client{}
 
 var g_watchFile *tail.Tail
 var g_chatPrefixRegex *regexp.Regexp
@@ -2153,9 +2149,6 @@ func makeDownloaderTab() ui.Control {
 
 	playAfterBox.Append(playAfterCheck, false)
 
-	downloadProgressLabel := ui.NewLabel("Progress :")
-	downloadProgressBar := ui.NewProgressBar()
-
 	downloadGrid.Append(urlEntry, 0, 0, 1, 1, true, ui.AlignFill, false, ui.AlignCenter)
 
 	downloadButton := ui.NewButton("Download and convert video")
@@ -2166,7 +2159,7 @@ func makeDownloaderTab() ui.Control {
 			return
 		}
 
-		videoId, idError := youtube.ExtractVideoID(urlEntry.Text())
+		videoId, idError := ExtractVideoID(urlEntry.Text())
 
 		if idError != nil {
 			logToEntry(idError.Error())
@@ -2186,10 +2179,7 @@ func makeDownloaderTab() ui.Control {
 			}
 		}
 
-		go tryDownloadVideo(videoId, fileNameEntry.Text(),
-			downloadCallback,
-			downloadProgressLabel,
-			downloadProgressBar)
+		go tryDownloadVideo(videoId, fileNameEntry.Text(), downloadCallback)
 	})
 
 	downloadGrid.Append(downloadButton, 1, 0, 1, 1, false, ui.AlignFill, false, ui.AlignCenter)
@@ -2202,170 +2192,104 @@ func makeDownloaderTab() ui.Control {
 	vContainer.Append(downloadForm, false)
 	vContainer.Append(ui.NewHorizontalSeparator(), false)
 	vContainer.Append(ui.NewLabel("Set the size limit to 0 to disable it"), false)
-	vContainer.Append(downloadProgressLabel, false)
-	vContainer.Append(downloadProgressBar, false)
 
 	return vContainer
 }
 
-func downloadVideo(videoId string, outputName string,
-	downloadProgressLabel *ui.Label,
-	downloadProgressBar *ui.ProgressBar) (string, error) {
-
-	ytVideo, videoError := g_downloadClient.GetVideo(videoId)
-
-	if videoError != nil {
-		return "", videoError
-	}
-
-	extFormat := "webm"
-	formatsList := ytVideo.Formats.WithAudioChannels().Type(extFormat)
-
-	if len(formatsList) == 0 {
-		extFormat = "mp4"
-		formatsList = ytVideo.Formats.WithAudioChannels().Type(extFormat)
-
-		if len(formatsList) == 0 {
-			ytVideo = nil
-			formatsList = nil
-
-			return "", errors.New("DownloadVideo: No audio track(s) found")
-		}
-	}
-
-	if (g_appSettings.VideoLimit != 0) && (formatsList[0].ContentLength > g_appSettings.VideoLimit<<20) {
-		ytVideo = nil
-		formatsList = nil
-
-		return "", fmt.Errorf("DownloadVideo: Video size is bigger than %d MB", g_appSettings.VideoLimit)
-	}
-
-	streamReader, streamSize, streamError := g_downloadClient.GetStream(ytVideo, &formatsList[0])
-
-	if streamError != nil {
-		ytVideo = nil
-		formatsList = nil
-
-		return "", streamError
-	}
-
-	ytVideo = nil
-	formatsList = nil
-
-	inputFullFilePath := filepath.Join(filepath.FromSlash(g_appSettings.LastDirectory), videoId+"."+extFormat)
-
-	inputFile, fileError := os.Create(inputFullFilePath)
-
-	if fileError != nil {
-		streamReader.Close()
-		streamReader = nil
-
-		return "", fileError
-	}
-
-	var finalReader io.Reader = streamReader
-
-	if downloadProgressLabel != nil && downloadProgressBar != nil {
-		finalReader = &ioprogress.Reader{
-			Reader: streamReader,
-			Size:   streamSize,
-			DrawFunc: func(progress, total int64) error {
-				if progress == -1 {
-					return nil
-				}
-
-				ui.QueueMain(func() {
-					downloadProgressLabel.SetText(fmt.Sprintf("Progress : %.2f KB / %.2f KB", float64(progress)/1024, float64(total)/1024))
-				})
-				ui.QueueMain(func() {
-					downloadProgressBar.SetValue(int(float64(progress) / float64(total) * 100))
-				})
-
-				return nil
-			},
-			DrawInterval: time.Millisecond * 0,
-		}
-	}
-
-	_, copyError := io.Copy(inputFile, finalReader)
-
-	if copyError != nil {
-		streamReader.Close()
-		streamReader = nil
-		inputFile.Close()
-		inputFile = nil
-		os.Remove(inputFullFilePath)
-
-		return "", copyError
-	}
-
-	finalReader = nil
-	streamReader.Close()
-	streamReader = nil
-	inputFile.Close()
-	inputFile = nil
-
-	appPath, pathError := exec.LookPath("./ffmpeg")
+func downloadVideo(videoId string, outputName string) (string, error) {
+	appPath, pathError := exec.LookPath("./yt-dlp")
 
 	if pathError != nil {
-		appPath, pathError = exec.LookPath("ffmpeg")
+		appPath, pathError = exec.LookPath("yt-dlp")
 
 		if pathError != nil {
-			os.Remove(inputFullFilePath)
-
 			return "", pathError
 		}
 	}
 
-	outputFilePath := outputName
-	finalExt := ".ogg"
+	outputFile := outputName
 
-	if extFormat == "mp4" {
-		finalExt = ".mp3"
+	if outputFile == "" {
+		outputFile = videoId
 	}
 
-	if outputFilePath == "" {
-		outputFilePath = videoId + finalExt
-	} else if filepath.Ext(outputFilePath) == "" {
-		outputFilePath += finalExt
+	if strings.HasPrefix(videoId, "-") {
+		videoId = "https://youtube.com/watch?v=" + videoId
 	}
 
-	outputFullFilePath := filepath.Join(filepath.FromSlash(g_appSettings.LastDirectory), outputFilePath)
+	expectedFilePath := filepath.Join(filepath.FromSlash(g_appSettings.LastDirectory), outputFile)
+	tempFilePath := expectedFilePath + ".webm"
+	expectedFilePath += ".ogg"
 
-	appArgs := []string{"-i", inputFullFilePath, "-vn", "-y", outputFullFilePath}
-
-	if filepath.Ext(outputFilePath) == ".ogg" && extFormat == "webm" {
-		appArgs = []string{"-i", inputFullFilePath, "-vn", "-c:a", "copy", "-y", outputFullFilePath}
-	}
-
-	appBin := exec.Command(appPath, appArgs...)
-	appArgs = nil
+	appBin := exec.Command(appPath,
+		"-f", "ba[ext=webm]",
+		"-o", filepath.Join(filepath.FromSlash(g_appSettings.LastDirectory), outputFile+".%(ext)s"),
+		"-q",
+		"--remux-video", "ogg",
+		"--max-filesize", fmt.Sprintf("%dM", g_appSettings.VideoLimit),
+		"--max-downloads", "1",
+		"--force-overwrites",
+		"--no-playlist",
+		"--no-part",
+		"--no-continue",
+		"--no-cache-dir",
+		"--no-mtime",
+		videoId)
 	appBin.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
 
 	runError := appBin.Run()
 
-	appBin = nil
-	os.Remove(inputFullFilePath)
+	_, statError := os.Stat(expectedFilePath)
 
-	if runError != nil {
-		if _, statError := os.Stat(outputFullFilePath); statError == nil {
-			os.Remove(outputFullFilePath)
+	if statError != nil {
+		if _, tempError := os.Stat(tempFilePath); tempError == nil {
+			os.Remove(tempFilePath)
 		}
 
-		return "", runError
+		if runError != nil {
+			return "", runError
+		}
+
+		return "", statError
 	}
 
-	return outputFullFilePath, nil
+	return expectedFilePath, nil
 }
 
-func tryDownloadVideo(videoId string, outputName string, downloadCallback func(trackIndex int),
-	downloadProgressLabel *ui.Label,
-	downloadProgressBar *ui.ProgressBar) {
+// https://github.com/kkdai/youtube/blob/master/video_id.go
 
+var VideoRegexpList = []*regexp.Regexp{
+	regexp.MustCompile(`(?:v|embed|shorts|watch\?v)(?:=|/)([^"&?/=%]{11})`),
+	regexp.MustCompile(`(?:=|/)([^"&?/=%]{11})`),
+	regexp.MustCompile(`([^"&?/=%]{11})`),
+}
+
+func ExtractVideoID(videoID string) (string, error) {
+	if strings.Contains(videoID, "youtu") || strings.ContainsAny(videoID, "\"?&/<%=") {
+		for _, re := range VideoRegexpList {
+			if isMatch := re.MatchString(videoID); isMatch {
+				subs := re.FindStringSubmatch(videoID)
+				videoID = subs[1]
+			}
+		}
+	}
+
+	if strings.ContainsAny(videoID, "?&/<%=") {
+		return "", errors.New("invalid characters in video id")
+	}
+
+	if len(videoID) < 10 {
+		return "", errors.New("the video id must be at least 10 characters long")
+	}
+
+	return videoID, nil
+}
+
+func tryDownloadVideo(videoId string, outputName string, downloadCallback func(trackIndex int)) {
 	var downloadError error
 	var outputPath string
 
-	if outputPath, downloadError = downloadVideo(videoId, outputName, downloadProgressLabel, downloadProgressBar); downloadError != nil {
+	if outputPath, downloadError = downloadVideo(videoId, outputName); downloadError != nil {
 		ui.QueueMain(func() { logToEntry(downloadError.Error()) })
 
 		return
@@ -3134,7 +3058,7 @@ func videoCommand(arg string) {
 			return
 		}
 
-		videoId, idError := youtube.ExtractVideoID(arg)
+		videoId, idError := ExtractVideoID(arg)
 
 		if idError != nil {
 			ui.QueueMain(func() { logToEntry(idError.Error()) })
@@ -3145,9 +3069,7 @@ func videoCommand(arg string) {
 		tryDownloadVideo(videoId, "",
 			func(trackIndex int) {
 				g_tracksList[trackIndex].Queue()
-			},
-			nil,
-			nil)
+			})
 	}()
 }
 
@@ -3173,7 +3095,7 @@ func forceVideoCommand(arg string) {
 			return
 		}
 
-		videoId, idError := youtube.ExtractVideoID(arg)
+		videoId, idError := ExtractVideoID(arg)
 
 		if idError != nil {
 			ui.QueueMain(func() { logToEntry(idError.Error()) })
@@ -3184,9 +3106,7 @@ func forceVideoCommand(arg string) {
 		tryDownloadVideo(videoId, "",
 			func(trackIndex int) {
 				go playSound(g_tracksList[trackIndex], g_selectedDevice)
-			},
-			nil,
-			nil)
+			})
 	}()
 }
 
