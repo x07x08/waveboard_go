@@ -76,7 +76,7 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
    - This is for the log watching feature, which allows interaction with the application using the game's chat.
    - You can use an `autoexec.cfg` file for easier management.
 
-4. <sup>*Optional*</sup> A ffmpeg binary for video downloading and conversion
+4. <sup>*Optional*</sup> yt-dlp and ffmpeg binaries for video downloading and conversion
 
 # The "fixes" folder
 
