@@ -35,7 +35,7 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 	</tr>
 	<tr>
 		<td align = "center">
-			<img src="https://github.com/x07x08/waveboard/assets/88050465/6fcb62dd-c683-4d6b-a401-4f004338a24a" width = "100%" height = "100%">
+			<img src=https://github.com/x07x08/waveboard/assets/88050465/c202bc5d-b282-4a44-a71d-5791fc0baa9d width = "100%" height = "100%">
 			<p>
 				Downloader tab
 			</p>
