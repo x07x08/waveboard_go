@@ -2033,11 +2033,7 @@ func (track *AudioTrack) ClearTrackSafe() {
 func (track *AudioTrack) StartDevice(index int) error {
 	var finalError error
 
-	if finalError = track.Device.Start(); finalError == nil {
-		return finalError
-	}
-
-	if finalError != malgo.ErrUnavailable {
+	if finalError = track.Device.Start(); finalError == nil || finalError != malgo.ErrUnavailable {
 		return finalError
 	}
 
@@ -2171,10 +2167,6 @@ func makeDownloaderTab() ui.Control {
 
 		if playAfterCheck.Checked() {
 			downloadCallback = func(trackIndex int) {
-				if !playAfterCheck.Checked() {
-					return
-				}
-
 				go playSound(g_tracksList[trackIndex], -1)
 			}
 		}
@@ -2788,7 +2780,13 @@ func setWatchFile(fileSave string) error {
 	}
 
 	var tailError error
-	g_watchFile, tailError = tail.TailFile(filepath.FromSlash(fileSave), tail.Config{Follow: true, Location: &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd}, Poll: true})
+	g_watchFile, tailError = tail.TailFile(filepath.FromSlash(fileSave),
+		tail.Config{
+			Follow:    true,
+			Location:  &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd},
+			Poll:      true,
+			MustExist: true,
+		})
 
 	if tailError != nil {
 		return tailError
@@ -3041,8 +3039,16 @@ func videoCommand(arg string) {
 		return
 	}
 
+	videoId, idError := ExtractVideoID(arg)
+
+	if idError != nil {
+		ui.QueueMain(func() { logToEntry(idError.Error()) })
+
+		return
+	}
+
 	for _, item := range g_tracksList {
-		if arg != item.Name {
+		if videoId != item.Name {
 			continue
 		}
 
@@ -3054,14 +3060,6 @@ func videoCommand(arg string) {
 	go func() {
 		if g_appSettings.LastDirectory == "" {
 			ui.QueueMain(func() { logToEntry("No audio directory found") })
-
-			return
-		}
-
-		videoId, idError := ExtractVideoID(arg)
-
-		if idError != nil {
-			ui.QueueMain(func() { logToEntry(idError.Error()) })
 
 			return
 		}
@@ -3078,8 +3076,16 @@ func forceVideoCommand(arg string) {
 		return
 	}
 
+	videoId, idError := ExtractVideoID(arg)
+
+	if idError != nil {
+		ui.QueueMain(func() { logToEntry(idError.Error()) })
+
+		return
+	}
+
 	for _, item := range g_tracksList {
-		if arg != item.Name {
+		if videoId != item.Name {
 			continue
 		}
 
@@ -3091,14 +3097,6 @@ func forceVideoCommand(arg string) {
 	go func() {
 		if g_appSettings.LastDirectory == "" {
 			ui.QueueMain(func() { logToEntry("No audio directory found") })
-
-			return
-		}
-
-		videoId, idError := ExtractVideoID(arg)
-
-		if idError != nil {
-			ui.QueueMain(func() { logToEntry(idError.Error()) })
 
 			return
 		}
