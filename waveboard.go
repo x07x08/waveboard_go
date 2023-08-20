@@ -2205,10 +2205,6 @@ func downloadVideo(videoId string, outputName string) (string, error) {
 		outputFile = videoId
 	}
 
-	if strings.HasPrefix(videoId, "-") {
-		videoId = "https://youtube.com/watch?v=" + videoId
-	}
-
 	expectedFilePath := filepath.Join(filepath.FromSlash(g_appSettings.LastDirectory), outputFile)
 	tempFilePath := expectedFilePath + ".webm"
 	expectedFilePath += ".ogg"
@@ -2226,6 +2222,7 @@ func downloadVideo(videoId string, outputName string) (string, error) {
 		"--no-continue",
 		"--no-cache-dir",
 		"--no-mtime",
+		"--", // https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
 		videoId)
 	appBin.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
 
