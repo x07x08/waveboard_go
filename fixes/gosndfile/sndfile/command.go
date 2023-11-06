@@ -1,6 +1,6 @@
 package sndfile
 
-// #cgo pkg-config: sndfile
+// #cgo LDFLAGS: -lsndfile
 // #include <stdlib.h>
 // #include <sndfile.h>
 // #include <string.h>
@@ -56,7 +56,7 @@ func (f *File) CalcNormSignalMax() (ret float64, err error) {
 	return
 }
 
-//Calculate the peak value (ie a single number) for each channel. This involves reading through the whole file which can be slow on large files.
+// Calculate the peak value (ie a single number) for each channel. This involves reading through the whole file which can be slow on large files.
 func (f *File) CalcMaxAllChannels() (ret []float64, err error) {
 	c := f.Format.Channels
 	ret = make([]float64, c)
@@ -67,7 +67,7 @@ func (f *File) CalcMaxAllChannels() (ret []float64, err error) {
 	return
 }
 
-//Calculate the normalised peak for each channel. This involves reading through the whole file which can be slow on large files.
+// Calculate the normalised peak for each channel. This involves reading through the whole file which can be slow on large files.
 func (f *File) CalcNormMaxAllChannels() (ret []float64, err error) {
 	c := f.Format.Channels
 	ret = make([]float64, c)
@@ -78,7 +78,7 @@ func (f *File) CalcNormMaxAllChannels() (ret []float64, err error) {
 	return
 }
 
-//Retrieve the peak value for the file as stored in the file header.
+// Retrieve the peak value for the file as stored in the file header.
 func (f *File) GetSignalMax() (ret float64, ok bool) {
 	r := C.sf_command(f.s, C.SFC_GET_SIGNAL_MAX, unsafe.Pointer(&ret), 8)
 	if r == C.SF_TRUE {
@@ -87,7 +87,7 @@ func (f *File) GetSignalMax() (ret float64, ok bool) {
 	return
 }
 
-//Retrieve the peak value for the file as stored in the file header.
+// Retrieve the peak value for the file as stored in the file header.
 func (f *File) GetMaxAllChannels() (ret []float64, ok bool) {
 	c := f.Format.Channels
 	ret = make([]float64, c)
@@ -98,7 +98,8 @@ func (f *File) GetMaxAllChannels() (ret []float64, ok bool) {
 	return
 }
 
-/*This command only affects data read from or written to using ReadItems, ReadFrames, WriteItems, or WriteFrames with slices of float32.
+/*
+This command only affects data read from or written to using ReadItems, ReadFrames, WriteItems, or WriteFrames with slices of float32.
 
 For read operations setting normalisation to true means that the data from all subsequent reads will be be normalised to the range [-1.0, 1.0].
 
@@ -106,12 +107,14 @@ For write operations, setting normalisation to true means than all data supplied
 
 For both cases, setting normalisation to false means that no scaling will take place.
 
-Returns the previous normalization setting. */
+Returns the previous normalization setting.
+*/
 func (f *File) SetFloatNormalization(norm bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_NORM_FLOAT, norm)
 }
 
-/*This command only affects data read from or written to using ReadItems, ReadFrames, WriteItems, or WriteFrames with slices of float64.
+/*
+This command only affects data read from or written to using ReadItems, ReadFrames, WriteItems, or WriteFrames with slices of float64.
 
 For read operations setting normalisation to true means that the data from all subsequent reads will be be normalised to the range [-1.0, 1.0].
 
@@ -119,7 +122,8 @@ For write operations, setting normalisation to true means than all data supplied
 
 For both cases, setting normalisation to false means that no scaling will take place.
 
-Returns the previous normalization setting. */
+Returns the previous normalization setting.
+*/
 func (f *File) SetDoubleNormalization(norm bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_NORM_DOUBLE, norm)
 }
@@ -134,25 +138,25 @@ func (f *File) GetDoubleNormalization() bool {
 	return f.genericBoolBoolCmd(C.SFC_GET_NORM_DOUBLE, false)
 }
 
-//Set/clear the scale factor when integer (short/int) data is read from a file containing floating point data.
+// Set/clear the scale factor when integer (short/int) data is read from a file containing floating point data.
 func (f *File) SetFloatIntScaleRead(scale bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_SCALE_FLOAT_INT_READ, scale)
 }
 
-//Set/clear the scale factor when integer (short/int) data is written to a file as floating point data.
+// Set/clear the scale factor when integer (short/int) data is written to a file as floating point data.
 func (f *File) SetIntFloatScaleWrite(scale bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_SCALE_INT_FLOAT_WRITE, scale)
 }
 
-//Retrieve the number of simple formats supported by libsndfile.
+// Retrieve the number of simple formats supported by libsndfile.
 func GetSimpleFormatCount() int {
 	var o C.int
 	C.sf_command(nil, C.SFC_GET_SIMPLE_FORMAT_COUNT, unsafe.Pointer(&o), C.int(unsafe.Sizeof(o)))
 	return int(o)
 }
 
-//Retrieve information about a simple format.
-//The value of the format argument should be the format number (ie 0 <= format <= count value obtained using GetSimpleFormatCount()).
+// Retrieve information about a simple format.
+// The value of the format argument should be the format number (ie 0 <= format <= count value obtained using GetSimpleFormatCount()).
 // The returned format argument is suitable for use in sndfile.Open()
 func GetSimpleFormat(format int) (oformat int, name string, extension string, ok bool) {
 	var o C.SF_FORMAT_INFO
@@ -164,7 +168,7 @@ func GetSimpleFormat(format int) (oformat int, name string, extension string, ok
 	return
 }
 
-//When GetFormatInfo() is called, the format argument is examined and if (format & SF_FORMAT_TYPEMASK) is a valid format then the returned strings contain information about the given major type. If (format & SF_FORMAT_TYPEMASK) is FALSE and (format & SF_FORMAT_SUBMASK) is a valid subtype format then the returned strings contain information about the given subtype.
+// When GetFormatInfo() is called, the format argument is examined and if (format & SF_FORMAT_TYPEMASK) is a valid format then the returned strings contain information about the given major type. If (format & SF_FORMAT_TYPEMASK) is FALSE and (format & SF_FORMAT_SUBMASK) is a valid subtype format then the returned strings contain information about the given subtype.
 func GetFormatInfo(format int) (oformat int, name string, extension string, ok bool) {
 	var o C.SF_FORMAT_INFO
 	o.format = C.int(format)
@@ -175,15 +179,15 @@ func GetFormatInfo(format int) (oformat int, name string, extension string, ok b
 	return
 }
 
-//Retrieve the number of major formats supported by libsndfile.
+// Retrieve the number of major formats supported by libsndfile.
 func GetMajorFormatCount() int {
 	var o C.int
 	C.sf_command(nil, C.SFC_GET_FORMAT_MAJOR_COUNT, unsafe.Pointer(&o), C.int(unsafe.Sizeof(o)))
 	return int(o)
 }
 
-//Retrieve information about a major format type
-//For a more comprehensive example, see the program list_formats.c in the examples/ directory of the libsndfile source code distribution.
+// Retrieve information about a major format type
+// For a more comprehensive example, see the program list_formats.c in the examples/ directory of the libsndfile source code distribution.
 func GetMajorFormatInfo(format int) (oformat int, name string, extension string, ok bool) {
 	var o C.SF_FORMAT_INFO
 	o.format = C.int(format)
@@ -194,14 +198,14 @@ func GetMajorFormatInfo(format int) (oformat int, name string, extension string,
 	return
 }
 
-//Retrieve the number of subformats supported by libsndfile.
+// Retrieve the number of subformats supported by libsndfile.
 func GetSubFormatCount() int {
 	var o C.int
 	C.sf_command(nil, C.SFC_GET_FORMAT_SUBTYPE_COUNT, unsafe.Pointer(&o), C.int(unsafe.Sizeof(o)))
 	return int(o)
 }
 
-//Enumerate the subtypes (this function does not translate a subtype into a string describing that subtype). A typical use case might be retrieving a string description of all subtypes so that a dialog box can be filled in.
+// Enumerate the subtypes (this function does not translate a subtype into a string describing that subtype). A typical use case might be retrieving a string description of all subtypes so that a dialog box can be filled in.
 func GetSubFormatInfo(format int) (oformat int, name string, ok bool) {
 	var o C.SF_FORMAT_INFO
 	o.format = C.int(format)
@@ -213,19 +217,19 @@ func GetSubFormatInfo(format int) (oformat int, name string, ok bool) {
 
 //By default, WAV and AIFF files which contain floating point data (subtype SF_FORMAT_FLOAT or SF_FORMAT_DOUBLE) have a PEAK chunk. By using this command, the addition of a PEAK chunk can be turned on or off.
 
-//Note : This call must be made before any data is written to the file.
+// Note : This call must be made before any data is written to the file.
 func (f *File) SetAddPeakChunk(set bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_ADD_PEAK_CHUNK, set)
 }
 
 //The header of an audio file is normally written by libsndfile when the file is closed using sf_close().
 
-//There are however situations where large files are being generated and it would be nice to have valid data in the header before the file is complete. Using this command will update the file header to reflect the amount of data written to the file so far. Other programs opening the file for read (before any more data is written) will then read a valid sound file header.
+// There are however situations where large files are being generated and it would be nice to have valid data in the header before the file is complete. Using this command will update the file header to reflect the amount of data written to the file so far. Other programs opening the file for read (before any more data is written) will then read a valid sound file header.
 func (f *File) UpdateHeaderNow() {
 	C.sf_command(f.s, C.SFC_UPDATE_HEADER_NOW, nil, 0)
 }
 
-//Similar to SFC_UPDATE_HEADER_NOW but updates the header at the end of every call to the sf_write* functions.
+// Similar to SFC_UPDATE_HEADER_NOW but updates the header at the end of every call to the sf_write* functions.
 func (f *File) SetUpdateHeaderAuto(set bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_UPDATE_HEADER_AUTO, set)
 }
@@ -250,7 +254,7 @@ func (f *File) genericBoolBoolCmd(cmd C.int, i bool) bool {
 	return (n == C.SF_TRUE)
 }
 
-//Change the data start offset for files opened up as SF_FORMAT_RAW. libsndfile implements this but it appears to not do anything useful that you can't accomplish with seek, so consider this deprecated.
+// Change the data start offset for files opened up as SF_FORMAT_RAW. libsndfile implements this but it appears to not do anything useful that you can't accomplish with seek, so consider this deprecated.
 func (f *File) SetRawStartOffset(count int64) (err error) {
 	r := C.sf_command(f.s, C.SFC_SET_RAW_START_OFFSET, unsafe.Pointer(&count), 8)
 
@@ -260,19 +264,19 @@ func (f *File) SetRawStartOffset(count int64) (err error) {
 	return
 }
 
-//Turn on/off automatic clipping when doing floating point to integer conversion.
+// Turn on/off automatic clipping when doing floating point to integer conversion.
 func (f *File) SetClipping(clip bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_SET_CLIPPING, clip)
 }
 
-//Is automatic clipping when doing floating point to integer conversion on?
+// Is automatic clipping when doing floating point to integer conversion on?
 func (f *File) GetClipping(clip bool) bool {
 	return f.genericBoolBoolCmd(C.SFC_GET_CLIPPING, false)
 }
 
-//Get the file offset and file length of a file enbedded within another larger file.
-//The value of the offset return value will be the offsets in bytes from the start of the outer file to the start of the embedded audio file.
-//The value of the length return value will be the length in bytes of the embedded file.
+// Get the file offset and file length of a file enbedded within another larger file.
+// The value of the offset return value will be the offsets in bytes from the start of the outer file to the start of the embedded audio file.
+// The value of the length return value will be the length in bytes of the embedded file.
 // Untested.
 func (f *File) GetEmbeddedFileInfo() (offset, length int64, err error) {
 	var s C.SF_EMBED_FILE_INFO
@@ -288,19 +292,19 @@ func (f *File) GetEmbeddedFileInfo() (offset, length int64, err error) {
 const AmbisonicNone int = int(C.SF_AMBISONIC_NONE)
 const AmbisonicBFormat int = int(C.SF_AMBISONIC_B_FORMAT)
 
-//Test if the current file has the GUID of a WAVEX file for any of the Ambisonic formats.
+// Test if the current file has the GUID of a WAVEX file for any of the Ambisonic formats.
 // returns AmbisonicNone or AmbisonicBFormat, or zero if the file format does not support Ambisonic formats
 func (f *File) WavexGetAmbisonic() int {
 	return int(C.sf_command(f.s, C.SFC_WAVEX_GET_AMBISONIC, nil, 0))
 }
 
-//Set the GUID of a new WAVEX file to indicate an Ambisonics format.
+// Set the GUID of a new WAVEX file to indicate an Ambisonics format.
 // returns format that was just set, or zero if the file format does not support Ambisonic formats
 func (f *File) WavexSetAmbisonic(ambi int) int {
 	return int(C.sf_command(f.s, C.SFC_WAVEX_SET_AMBISONIC, nil, C.int(ambi)))
 }
 
-//Set the the Variable Bit Rate encoding quality. The encoding quality value should be between 0.0 (lowest quality) and 1.0 (highest quality). Untested.
+// Set the the Variable Bit Rate encoding quality. The encoding quality value should be between 0.0 (lowest quality) and 1.0 (highest quality). Untested.
 func (f *File) SetVbrQuality(q float64) (err error) {
 	r := C.sf_command(f.s, C.SFC_SET_VBR_ENCODING_QUALITY, unsafe.Pointer(&q), 8)
 	if r != 0 {
@@ -311,7 +315,7 @@ func (f *File) SetVbrQuality(q float64) (err error) {
 
 //Determine if raw data read using sf_read_raw needs to be end swapped on the host CPU.
 
-//For instance, will return true on when reading WAV containing SF_FORMAT_PCM_16 data on a big endian machine and false on a little endian machine.
+// For instance, will return true on when reading WAV containing SF_FORMAT_PCM_16 data on a big endian machine and false on a little endian machine.
 func (f *File) RawNeedsEndianSwap() bool {
 	return f.genericBoolBoolCmd(C.SFC_RAW_DATA_NEEDS_ENDSWAP, false)
 }

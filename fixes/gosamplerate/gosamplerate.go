@@ -3,7 +3,7 @@ package gosamplerate
 
 /*
 
-#cgo pkg-config: samplerate
+#cgo LDFLAGS: -lsamplerate
 
 #include <samplerate.h>
 #include <stdlib.h>

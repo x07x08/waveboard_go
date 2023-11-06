@@ -2,7 +2,7 @@ package sndfile
 
 // The sndfile package is a binding for libsndfile. It packages the libsndfile API in a go-like manner.
 
-// #cgo pkg-config: sndfile
+// #cgo LDFLAGS: -lsndfile
 // #include <stdlib.h>
 // #include <sndfile.h>
 import "C"

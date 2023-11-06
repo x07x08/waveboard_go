@@ -1,8 +1,8 @@
-// +build !legacy
+//go:build !legacy
 
 package sndfile
 
-// #cgo pkg-config: sndfile
+// #cgo LDFLAGS: -lsndfile
 // #include <stdlib.h>
 // #include <sndfile.h>
 // #include <string.h>
