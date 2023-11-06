@@ -97,8 +97,8 @@ It contains changes made to the following packages :
 
 You will need :
 
-* A C compiler for CGO. I have used [this](https://jmeubank.github.io/tdm-gcc/) one.
-* [pkg-config](https://stackoverflow.com/questions/1710922/how-to-install-pkg-config-in-windows) for [libsndfile](https://github.com/libsndfile/libsndfile) / [gosndfile](https://github.com/mkb218/gosndfile) and [libsamplerate](https://github.com/libsndfile/libsamplerate) / [gosamplerate](https://github.com/dh1tw/gosamplerate)
+* A C compiler for CGO. I have used [this](https://github.com/niXman/mingw-builds-binaries/releases/tag/13.2.0-rt_v11-rev1) one (only [`msvcrt`](https://www.msys2.org/docs/environments/#msvcrt-vs-ucrt) builds work).
+* [libsndfile](https://github.com/libsndfile/libsndfile) and [libsamplerate](https://github.com/libsndfile/libsamplerate).
 
 # Credits
 
