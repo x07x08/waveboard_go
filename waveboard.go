@@ -155,21 +155,25 @@ var commandsList []string = []string{
 	"skipall",
 	"block",
 	"allow",
+	"removeblock",
+	"removeallow",
 }
 
 var permissionsMap map[string]bool = map[string]bool{
-	"play":       defaultAllowedValue,
-	"fplay":      defaultBlockedValue,
-	"volume":     defaultBlockedValue,
-	"gvolume":    defaultBlockedValue,
-	"samplerate": defaultBlockedValue,
-	"tts":        defaultAllowedValue,
-	"video":      defaultAllowedValue,
-	"fvideo":     defaultBlockedValue,
-	"skip":       defaultBlockedValue,
-	"skipall":    defaultBlockedValue,
-	"block":      defaultBlockedValue,
-	"allow":      defaultBlockedValue,
+	"play":        defaultAllowedValue,
+	"fplay":       defaultBlockedValue,
+	"volume":      defaultBlockedValue,
+	"gvolume":     defaultBlockedValue,
+	"samplerate":  defaultBlockedValue,
+	"tts":         defaultAllowedValue,
+	"video":       defaultAllowedValue,
+	"fvideo":      defaultBlockedValue,
+	"skip":        defaultBlockedValue,
+	"skipall":     defaultBlockedValue,
+	"block":       defaultBlockedValue,
+	"allow":       defaultBlockedValue,
+	"removeblock": defaultBlockedValue,
+	"removeallow": defaultBlockedValue,
 }
 
 var g_appSettings Settings = Settings{
@@ -238,18 +242,20 @@ var g_audioQueue []*AudioTrack
 var g_queueModel *ui.TableModel
 
 var g_logCommands map[string]*LogCommand = map[string]*LogCommand{
-	"play":       {permissionsMap["play"], playCommand, "adds a sound to the queue"},
-	"fplay":      {permissionsMap["fplay"], forcePlayCommand, "plays a sound"},
-	"volume":     {permissionsMap["volume"], setVolumeCommand, "adjusts the volume of the current track"},
-	"gvolume":    {permissionsMap["gvolume"], setGlobalVolumeCommand, "adjusts the global volume"},
-	"samplerate": {permissionsMap["samplerate"], setSampleRateCommand, "adjusts the sample rate"},
-	"tts":        {permissionsMap["tts"], ttsCommand, "plays TTS"},
-	"video":      {permissionsMap["video"], videoCommand, "downloads and adds a video to the queue"},
-	"fvideo":     {permissionsMap["fvideo"], forceVideoCommand, "downloads and plays a video"},
-	"skip":       {permissionsMap["skip"], skipCommand, "skips the current track"},
-	"skipall":    {permissionsMap["skipall"], skipAllCommand, "removes all tracks from the queue"},
-	"block":      {permissionsMap["block"], blockCommand, "adds the user to blocked list"},
-	"allow":      {permissionsMap["allow"], allowCommand, "adds the user to allowed list"},
+	"play":        {permissionsMap["play"], playCommand, "adds a sound to the queue"},
+	"fplay":       {permissionsMap["fplay"], forcePlayCommand, "plays a sound"},
+	"volume":      {permissionsMap["volume"], setVolumeCommand, "adjusts the volume of the current track"},
+	"gvolume":     {permissionsMap["gvolume"], setGlobalVolumeCommand, "adjusts the global volume"},
+	"samplerate":  {permissionsMap["samplerate"], setSampleRateCommand, "adjusts the sample rate"},
+	"tts":         {permissionsMap["tts"], ttsCommand, "plays TTS"},
+	"video":       {permissionsMap["video"], videoCommand, "downloads and adds a video to the queue"},
+	"fvideo":      {permissionsMap["fvideo"], forceVideoCommand, "downloads and plays a video"},
+	"skip":        {permissionsMap["skip"], skipCommand, "skips the current track"},
+	"skipall":     {permissionsMap["skipall"], skipAllCommand, "removes all tracks from the queue"},
+	"block":       {permissionsMap["block"], blockCommand, "adds the user to blocked list"},
+	"allow":       {permissionsMap["allow"], allowCommand, "adds the user to allowed list"},
+	"removeblock": {permissionsMap["removeblock"], removeBlockCommand, "removes the user from the blocked list"},
+	"removeallow": {permissionsMap["removeallow"], removeAllowCommand, "removes the user from the allowed list"},
 }
 
 var g_sizeChangedFunc = debounce.New(1 * time.Second)
@@ -1693,9 +1699,7 @@ func DataFunc(pOutputSample, pInputSamples []byte, framecount uint32) {
 
 				if result < -1 {
 					result = -1
-				}
-
-				if result > 1 {
+				} else if result > 1 {
 					result = 1
 				}
 
@@ -1776,9 +1780,6 @@ func VirtualShimSeek(offset int64, whence sndfile.Whence, userdata interface{}) 
 	default:
 		return 0
 	}
-	if result < 0 {
-		return 0
-	}
 
 	shim.Index = int64(result)
 
@@ -1787,10 +1788,6 @@ func VirtualShimSeek(offset int64, whence sndfile.Whence, userdata interface{}) 
 
 func VirtualShimRead(output []byte, userdata interface{}) int64 {
 	shim := userdata.(*VirtualShim)
-
-	if shim.Index >= int64(len(shim.Data)) {
-		return 0
-	}
 
 	readNum := copy(output, shim.Data[shim.Index:])
 	shim.Index += int64(readNum)
@@ -2446,10 +2443,12 @@ func makeLogWatchTab() ui.Control {
 	commandsGroup := ui.NewGroup("Commands")
 	commandsGroup.SetMargined(true)
 
+	commandsModel := ui.NewTableModel(&CommandsTableModel{})
 	commandsTable := ui.NewTable(&ui.TableParams{
-		Model:                         ui.NewTableModel(&CommandsTableModel{}),
+		Model:                         commandsModel,
 		RowBackgroundColorModelColumn: 3,
 	})
+	commandsModel.RowInserted(0)
 
 	commandsTable.AppendTextColumn("Command", 0, ui.TableModelColumnNeverEditable, &ui.TableTextColumnOptionalParams{ColorModelColumn: -1})
 	commandsTable.AppendTextColumn("Description", 1, ui.TableModelColumnNeverEditable, &ui.TableTextColumnOptionalParams{ColorModelColumn: -1})
@@ -3156,6 +3155,48 @@ func blockCommand(arg string) {
 	}
 
 	g_appSettings.BlockedUsers = append(g_appSettings.BlockedUsers, arg)
+
+	ui.QueueMain(func() { g_blockedModel.RowInserted(0) })
+
+	go trySaveSettings()
+}
+
+func removeAllowCommand(arg string) {
+	if arg == "" {
+		return
+	}
+
+	for index := 0; index < len(g_appSettings.AllowedUsers); {
+		if g_appSettings.AllowedUsers[index] != arg {
+			index++
+
+			continue
+		}
+
+		g_appSettings.AllowedUsers = append(g_appSettings.AllowedUsers[:index], g_appSettings.AllowedUsers[index+1:]...)
+		index = 0
+	}
+
+	ui.QueueMain(func() { g_allowedModel.RowInserted(0) })
+
+	go trySaveSettings()
+}
+
+func removeBlockCommand(arg string) {
+	if arg == "" {
+		return
+	}
+
+	for index := 0; index < len(g_appSettings.BlockedUsers); {
+		if g_appSettings.BlockedUsers[index] != arg {
+			index++
+
+			continue
+		}
+
+		g_appSettings.BlockedUsers = append(g_appSettings.BlockedUsers[:index], g_appSettings.BlockedUsers[index+1:]...)
+		index = 0
+	}
 
 	ui.QueueMain(func() { g_blockedModel.RowInserted(0) })
 
