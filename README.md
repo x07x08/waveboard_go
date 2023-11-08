@@ -3,7 +3,7 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 # Features
 
 * Global keyboard hotkeys for sounds (limited to only one key per sound)
-* Real time playback. No separate files are stored on disk
+* In-memory playback. No separate files are stored on disk
 * Memory caching. The original file is accessed only once
 * Source Engine chat commands
 * Whitelist and blacklist (or just whitelist if everyone is blacklisted)
