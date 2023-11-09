@@ -18,6 +18,8 @@ The Text-To-Speech and keyboard hooks are Windows only, thus this program compil
 
 # Screenshots
 
+May be out of date
+
 <table>
 	<tr>
 		<td align = "center">
