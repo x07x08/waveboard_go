@@ -32,27 +32,30 @@ import (
 )
 
 type Settings struct {
-	LogFile       string                 `json:"logfile"`
-	LastDirectory string                 `json:"lastdir"`
-	LogWatch      string                 `json:"logwatch"`
-	BlockedUsers  []string               `json:"blockedusers"`
-	AllowedUsers  []string               `json:"allowedusers"`
-	Commands      map[string]*LogCommand `json:"commands"`
-	SampleRate    uint32                 `json:"samplerate"`
-	Device        string                 `json:"devicename"`
-	ResamplerType int                    `json:"resamplertype"`
-	GlobalVolume  float32                `json:"globalvolume"`
-	VideoLimit    int64                  `json:"videosizelimit"`
-	QueueLimit    int                    `json:"queuelimit"`
-	CommandPrefix string                 `json:"commandprefix"`
-	ChatPrefix    string                 `json:"chatprefix"`
-	Timestamped   bool                   `json:"timestamped"`
-	TTSVoice      string                 `json:"ttsvoice"`
-	TTSVolume     float32                `json:"ttsvolume"`
-	TTSRate       float32                `json:"ttsrate"`
-	WindowSize    ContentSize            `json:"windowsize"`
-	Maximized     bool                   `json:"maximized"`
-	Tracks        map[string]*AudioTrack `json:"tracks"`
+	LogFile          string                 `json:"logfile"`
+	LastDirectory    string                 `json:"lastdir"`
+	LogWatch         string                 `json:"logwatch"`
+	BlockedUsers     []string               `json:"blockedusers"`
+	AllowedUsers     []string               `json:"allowedusers"`
+	Commands         map[string]*LogCommand `json:"commands"`
+	SampleRate       uint32                 `json:"samplerate"`
+	Device           string                 `json:"devicename"`
+	ResamplerType    int                    `json:"resamplertype"`
+	GlobalVolume     float32                `json:"globalvolume"`
+	LimiterThreshold float32                `json:"limiterthreshold"`
+	AttackTime       float32                `json:"attacktime"`
+	ReleaseTime      float32                `json:"releasetime"`
+	VideoLimit       int64                  `json:"videosizelimit"`
+	QueueLimit       int                    `json:"queuelimit"`
+	CommandPrefix    string                 `json:"commandprefix"`
+	ChatPrefix       string                 `json:"chatprefix"`
+	Timestamped      bool                   `json:"timestamped"`
+	TTSVoice         string                 `json:"ttsvoice"`
+	TTSVolume        float32                `json:"ttsvolume"`
+	TTSRate          float32                `json:"ttsrate"`
+	WindowSize       ContentSize            `json:"windowsize"`
+	Maximized        bool                   `json:"maximized"`
+	Tracks           map[string]*AudioTrack `json:"tracks"`
 }
 
 type VirtualShim struct {
@@ -74,6 +77,18 @@ type AudioTrack struct {
 	Virtual     *sndfile.File     `json:"-"`
 	Device      *malgo.Device     `json:"-"`
 	Resampler   *gosamplerate.Src `json:"-"`
+}
+
+// https://github.com/dylagit/audio-limiter/blob/main/src/compressor.rs
+
+type Compressor struct {
+	PeakAtTime float32
+	PeakRTime  float32
+	PeakAvg    float32
+	GainAtTime float32
+	GainRTime  float32
+	GainAvg    float32
+	Threshold  float32
 }
 
 type LogCommand struct {
@@ -177,30 +192,33 @@ var permissionsMap map[string]bool = map[string]bool{
 }
 
 var g_appSettings Settings = Settings{
-	LogFile:       "",
-	LastDirectory: "",
-	LogWatch:      "",
-	BlockedUsers:  nil,
-	AllowedUsers:  nil,
-	Commands:      nil,
-	SampleRate:    44100,
-	Device:        "",
-	ResamplerType: gosamplerate.SRC_LINEAR,
-	GlobalVolume:  defaultVolume,
-	VideoLimit:    100,
-	QueueLimit:    100,
-	CommandPrefix: defaultCommandPrefix,
-	ChatPrefix:    defaultChatPrefix,
-	Timestamped:   false,
-	TTSVoice:      "",
-	TTSVolume:     defaultTTSVolume,
-	TTSRate:       defaultTTSRate,
-	WindowSize:    ContentSize{defaultWindowWidth, defaultWindowHeight},
-	Maximized:     false,
-	Tracks:        make(map[string]*AudioTrack),
+	LogFile:          "",
+	LastDirectory:    "",
+	LogWatch:         "",
+	BlockedUsers:     nil,
+	AllowedUsers:     nil,
+	Commands:         nil,
+	SampleRate:       44100,
+	Device:           "",
+	ResamplerType:    gosamplerate.SRC_LINEAR,
+	GlobalVolume:     defaultVolume,
+	LimiterThreshold: 0,
+	AttackTime:       25.0,
+	ReleaseTime:      50.0,
+	VideoLimit:       100,
+	QueueLimit:       100,
+	CommandPrefix:    defaultCommandPrefix,
+	ChatPrefix:       defaultChatPrefix,
+	Timestamped:      false,
+	TTSVoice:         "",
+	TTSVolume:        defaultTTSVolume,
+	TTSRate:          defaultTTSRate,
+	WindowSize:       ContentSize{defaultWindowWidth, defaultWindowHeight},
+	Maximized:        false,
+	Tracks:           make(map[string]*AudioTrack),
 }
 var g_settingsFile *os.File
-var g_saveFunc = debounce.New(2 * time.Second)
+var g_saveFunc = debounce.New(500 * time.Millisecond)
 
 var g_mainWindow *ui.Window
 
@@ -221,6 +239,7 @@ var g_keysMap map[types.VKCode]*AudioTrack
 var g_sampleRateEntry *ui.Entry
 var g_globalVolumeEntry *ui.Entry
 var g_tracksList []*AudioTrack
+var g_audioLimiter *Compressor
 var g_currentTrack *AudioTrack
 var g_audioBuffer *bytes.Buffer = bytes.NewBuffer(nil)
 var g_filteredList []int
@@ -258,7 +277,7 @@ var g_logCommands map[string]*LogCommand = map[string]*LogCommand{
 	"removeallow": {permissionsMap["removeallow"], removeAllowCommand, "removes the user from the allowed list"},
 }
 
-var g_sizeChangedFunc = debounce.New(1 * time.Second)
+var g_sizeChangedFunc = debounce.New(250 * time.Millisecond)
 
 var g_systemWindow win.HWND
 var g_windowPlacement *win.WINDOWPLACEMENT = &win.WINDOWPLACEMENT{Length: 6}
@@ -422,6 +441,11 @@ func SetupUI() {
 	panelTabs.SetMargined(5, true)
 
 	logToEntry("Built text-to-speech tab")
+
+	panelTabs.Append("Limiter", makeLimiterTab())
+	panelTabs.SetMargined(6, true)
+
+	logToEntry("Built limiter tab")
 
 	g_mainWindow.SetChild(panelTabs)
 
@@ -1647,6 +1671,26 @@ func playSound(track *AudioTrack, deviceID int) error {
 		}
 	}
 
+	if g_audioLimiter == nil {
+		g_audioLimiter = &Compressor{
+			PeakAtTime: CalcTau(g_appSettings.SampleRate, 0.01),
+			PeakRTime:  CalcTau(g_appSettings.SampleRate, 10.0),
+			PeakAvg:    0,
+			GainAtTime: CalcTau(g_appSettings.SampleRate, g_appSettings.AttackTime),
+			GainRTime:  CalcTau(g_appSettings.SampleRate, g_appSettings.ReleaseTime),
+			GainAvg:    1.0,
+			Threshold:  g_appSettings.LimiterThreshold,
+		}
+	} else {
+		g_audioLimiter.PeakAtTime = CalcTau(g_appSettings.SampleRate, 0.01)
+		g_audioLimiter.PeakRTime = CalcTau(g_appSettings.SampleRate, 10.0)
+		g_audioLimiter.PeakAvg = 0
+		g_audioLimiter.GainAtTime = CalcTau(g_appSettings.SampleRate, g_appSettings.AttackTime)
+		g_audioLimiter.GainRTime = CalcTau(g_appSettings.SampleRate, g_appSettings.ReleaseTime)
+		g_audioLimiter.GainAvg = 1.0
+		g_audioLimiter.Threshold = g_appSettings.LimiterThreshold
+	}
+
 	track.Resampler.Reset()
 	g_audioBuffer.Reset()
 	track.ReadMode = false
@@ -1695,7 +1739,7 @@ func DataFunc(pOutputSample, pInputSamples []byte, framecount uint32) {
 			var result float32
 
 			for _, item := range finalData {
-				result = item * g_currentTrack.Volume * g_appSettings.GlobalVolume / 10000
+				result = g_audioLimiter.Compress(item * g_currentTrack.Volume * g_appSettings.GlobalVolume / 10000)
 
 				if result < -1 {
 					result = -1
@@ -3513,4 +3557,140 @@ func setTTSRate(newRate float32) {
 	}
 
 	g_ttsInPipe.Write([]byte(fmt.Sprintf("\r\nSetRate %.2f\r\n", newRate)))
+}
+
+func makeLimiterTab() ui.Control {
+	vContainer := ui.NewVerticalBox()
+	vContainer.SetPadded(true)
+
+	limiterForm := ui.NewForm()
+	limiterForm.SetPadded(true)
+
+	limiterGrid := ui.NewGrid()
+	limiterGrid.SetPadded(true)
+
+	limiterEntry := ui.NewEntry()
+	limiterEntry.SetText(strconv.FormatFloat(float64(g_appSettings.LimiterThreshold), 'f', 2, 32))
+
+	limiterGrid.Append(limiterEntry, 0, 0, 1, 1, true, ui.AlignFill, false, ui.AlignCenter)
+
+	limiterButton := ui.NewButton("Apply new threshold")
+	limiterButton.OnClicked(func(b *ui.Button) {
+		newLimitValue, convError := strconv.ParseFloat(limiterEntry.Text(), 32)
+
+		if convError != nil {
+			logToEntry(convError.Error())
+
+			return
+		}
+
+		if newLimitValue == float64(g_appSettings.LimiterThreshold) {
+			return
+		}
+
+		g_appSettings.LimiterThreshold = float32(newLimitValue)
+
+		if g_audioLimiter != nil {
+			g_audioLimiter.Threshold = g_appSettings.LimiterThreshold
+		}
+
+		go trySaveSettings()
+	})
+
+	limiterGrid.Append(limiterButton, 1, 0, 1, 1, false, ui.AlignFill, false, ui.AlignCenter)
+
+	limiterForm.Append("Threshold value (+/- dB) :", limiterGrid, false)
+
+	attackTimeGrid := ui.NewGrid()
+	attackTimeGrid.SetPadded(true)
+
+	attackTimeEntry := ui.NewEntry()
+	attackTimeEntry.SetText(strconv.FormatFloat(float64(g_appSettings.AttackTime), 'f', 2, 32))
+
+	attackTimeGrid.Append(attackTimeEntry, 0, 0, 1, 1, true, ui.AlignFill, false, ui.AlignCenter)
+
+	attackTimeButton := ui.NewButton("Apply new attack time")
+	attackTimeButton.OnClicked(func(b *ui.Button) {
+		newAttackTime, convError := strconv.ParseFloat(attackTimeEntry.Text(), 32)
+
+		if convError != nil {
+			logToEntry(convError.Error())
+
+			return
+		}
+
+		if newAttackTime == float64(g_appSettings.AttackTime) {
+			return
+		}
+
+		g_appSettings.AttackTime = float32(newAttackTime)
+
+		go trySaveSettings()
+	})
+
+	attackTimeGrid.Append(attackTimeButton, 1, 0, 1, 1, false, ui.AlignFill, false, ui.AlignCenter)
+
+	limiterForm.Append("Attack time (ms) :", attackTimeGrid, false)
+
+	releaseTimeGrid := ui.NewGrid()
+	releaseTimeGrid.SetPadded(true)
+
+	releaseTimeEntry := ui.NewEntry()
+	releaseTimeEntry.SetText(strconv.FormatFloat(float64(g_appSettings.ReleaseTime), 'f', 2, 32))
+
+	releaseTimeGrid.Append(releaseTimeEntry, 0, 0, 1, 1, true, ui.AlignFill, false, ui.AlignCenter)
+
+	releaseTimeButton := ui.NewButton("Apply new release time")
+	releaseTimeButton.OnClicked(func(b *ui.Button) {
+		newReleaseTime, convError := strconv.ParseFloat(releaseTimeEntry.Text(), 32)
+
+		if convError != nil {
+			logToEntry(convError.Error())
+
+			return
+		}
+
+		if newReleaseTime == float64(g_appSettings.ReleaseTime) {
+			return
+		}
+
+		g_appSettings.ReleaseTime = float32(newReleaseTime)
+
+		go trySaveSettings()
+	})
+
+	releaseTimeGrid.Append(releaseTimeButton, 1, 0, 1, 1, false, ui.AlignFill, false, ui.AlignCenter)
+
+	limiterForm.Append("Release time (ms) :", releaseTimeGrid, false)
+
+	vContainer.Append(limiterForm, false)
+
+	return vContainer
+}
+
+func (audioCompressor *Compressor) Compress(input float32) float32 {
+	audioCompressor.PeakAvg = AttRAverage(audioCompressor.PeakAvg, audioCompressor.PeakAtTime, audioCompressor.PeakRTime, float32(math.Abs(float64(input))))
+	gain := Limiter(audioCompressor.PeakAvg, audioCompressor.Threshold)
+	audioCompressor.GainAvg = AttRAverage(audioCompressor.GainAvg, audioCompressor.GainRTime, audioCompressor.GainAtTime, gain)
+	return input * audioCompressor.GainAvg
+}
+
+func AttRAverage(average float32, attackTime float32, releaseTime float32, input float32) float32 {
+	tau := releaseTime
+
+	if input > average {
+		tau = attackTime
+	}
+
+	return ((1.0-tau)*average + (tau * input))
+}
+
+func Limiter(input float32, threshold float32) float32 {
+	decibels := 20.0 * math.Log10(math.Abs(float64(input)))
+	gain := math.Min(float64(threshold)-decibels, 0.0)
+	return float32(math.Pow(10, 0.05*gain))
+}
+
+func CalcTau(samplerate uint32, timeMs float32) float32 {
+	return float32(1.0 - math.Exp(float64(-2200.0/(timeMs*float32(samplerate)))))
 }
