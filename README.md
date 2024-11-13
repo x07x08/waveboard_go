@@ -1,3 +1,9 @@
+# Deprecated
+
+Use [this](https://github.com/x07x08/waveboard)
+
+---
+
 The Text-To-Speech and keyboard hooks are Windows only, thus this program compiles and works properly only on Windows.
 
 # Features
